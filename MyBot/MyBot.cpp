@@ -1,40 +1,16 @@
-#include "MyBot.h"
 #include <iostream>
 #include <dpp/dpp.h>
-#include <fstream>
-const std::string BOT_TOKEN = [YOUR TOKEN HERE AS STRING];
-const std::string LOG_FILENAME = "global_log.txt";
+#include <ctime>
+// Implementacija sa direktnim pristupom .cpp datotekama umjesto rada sa headerima zbog odredjenih problema pri kompilaciji
+#include "Constants.cpp"
+#include "Helpers.cpp"
+#include "token.cpp"
 
-static bool is_id_in_vector(const uint64_t target_id, std::vector<uint64_t> vec) {
-	// sekvencijalna pretraga, binarna/interpolaciona nije izvodljiva s obzirom da ne mozemo garantovati sortiranost vektora,
-	// a sortirati ga prije slanja u funkciju *trenutno* nije neophodno jer radimo sa sitnim vektorima
-	for (uint64_t id : vec) if (id == target_id) return true;
-	return false;
-}
-
-static void write_to_file(const std::string line, const std::string filename) {
-	// pisanje u fajl
-	std::filebuf fb;
-	fb.open(filename, std::ios::app);
-	std::ostream stream(&fb);
-	stream << line;
-	fb.close();
-}
-
-static std::vector<std::string> splitString(std::string original) {
-	// "razbijamo" string u pojedinacne rijeci (odvojene razmacima) i vracamo vektor sa svim pojedinacnim rijecima
-	std::string temp;
-	std::istringstream ss(original);
-	std::vector<std::string> ret;
-
-	while (ss >> temp) ret.push_back(temp);
-	return ret;
-}
-
+const extern std::string BOT_TOKEN; // from "token.cpp"
+// const std::string BOT_TOKEN = "-->YOUR TOKEN GOES HERE AS A STRING<--";
 int main()
-{
+{	
 	srand((unsigned)time(0));
-
 	dpp::cluster bot(BOT_TOKEN, dpp::i_default_intents | dpp::i_message_content);
 	bot.on_log(dpp::utility::cout_logger());
 	bot.on_ready([&bot](const dpp::ready_t& event) {
@@ -42,27 +18,19 @@ int main()
 			std::vector<dpp::slashcommand> commands{
 				{ "sazovi", "Sazovi barjake!", bot.me.id }, // /sazovi <opcija> <poruka>
 				{ "pickone", "Biram jednu od ponudjenih rijeci!", bot.me.id }, // /pickone <rijeci odvojene razmakom>
-				{ "rankthem", "Rangiraj ponudjene rijeci!", bot.me.id } // /rankthem <rijeci odvojene razmakom>
+				{ "rankthem", "Rangiraj ponudjene rijeci!", bot.me.id }, // /rankthem <rijeci odvojene razmakom>
+				{ "info", "Ispisi detaljne informacije o sebi.", bot.me.id}
 			};
 			commands[0].add_option(dpp::command_option(dpp::co_integer, "opcija", "Opcije sazivanja: 0 -> SVI | 1 -> CS | 2 -> GTA | 3 -> PUBG", true));
 			commands[0].add_option(dpp::command_option(dpp::co_string, "poruka", "Poruka pri sazivanju", false));
 
-			commands[1].add_option(dpp::command_option(dpp::co_string, "ponudjeno", "Unesi rijeci odvojene zarezima", true));
+			commands[1].add_option(dpp::command_option(dpp::co_string, "ponudjeno", "Unesi rijeci odvojene zarezima za izbor", true));
 
-			commands[2].add_option(dpp::command_option(dpp::co_string, "ponudjeno", "Unesi rijeci odvojene zarezima", true));
+			commands[2].add_option(dpp::command_option(dpp::co_string, "ponudjeno", "Unesi rijeci odvojene zarezima za rangiranje", true));
 
 			bot.global_bulk_command_create(commands);
 		}
 	});
-
-	constexpr uint64_t NIKOLA_ID = 351451733857140736;
-	constexpr uint64_t VELJA_ID = 693390855532183574;
-	constexpr uint64_t VULIC_ID = 118432907218911233;
-	constexpr uint64_t ISAIJE_ID = 331818241834090496;
-	constexpr uint64_t BUREK_ID = 483587460610261003;
-	constexpr uint64_t OLA_ID = 691350585756352543;
-	constexpr uint64_t DARKO_ID = 563773413445861397;
-	constexpr uint64_t BOT_ID = 1241122981720096959;
 
 	// Slash komande
 	bot.on_slashcommand([&bot](const dpp::slashcommand_t& event) -> dpp::task<void> {
@@ -119,7 +87,7 @@ int main()
 			}
 			else {
 				const std::string param = std::get<std::string>(event.get_parameter("ponudjeno"));
-				const std::vector<std::string> words = splitString(param);
+				const std::vector<std::string> words = split_string(param);
 
 				int index = std::rand() % words.size();
 				std::string choice = words[index];
@@ -133,7 +101,7 @@ int main()
 			}
 			else {
 				const std::string param = std::get<std::string>(event.get_parameter("ponudjeno"));
-				std::vector<std::string> words = splitString(param);
+				std::vector<std::string> words = split_string(param);
 				std::string reply = "";
 				int rank = 1;
 
@@ -148,8 +116,34 @@ int main()
 			}
 		}
 		
-		// nova komanda
+		if (event.command.get_command_name() == "info") {
+			const dpp::user issuing_user = event.command.get_issuing_user();
+			const std::string username = issuing_user.global_name;
 
+			const double creation_time_unix = issuing_user.get_creation_time();
+			// napisati funkciju za konverziju unix vremena u ljudsko
+			std::string time_formatted;
+
+			dpp::embed embed = dpp::embed().
+				set_color(0xFF9900).
+				set_title(username).
+				set_description("").
+				set_thumbnail("https://i.imgur.com/vnQ2izi.jpeg").
+				add_field(
+					"Datum kreiranja naloga",
+					time_formatted
+				).
+				add_field(
+					"Datum ulaska na server",
+					"1.1.1974.",
+					true
+				).
+				set_footer(dpp::embed_footer().set_text("mudo labudovo"));
+			embed.timestamp = time(0);
+			bot.message_create(dpp::message(event.command.channel_id, embed));
+		}
+
+		// nova komanda
 		co_return;
 	});
 
@@ -168,39 +162,6 @@ int main()
 			// preskace prvih 'int skip' charova stringa i vraca sve poslije
 			return original.substr(skip, original.size() - skip);
 		};
-		auto logMessage = [](const std::string author_name, const std::string content, dpp::channel *channel_ptr) -> void {
-			// ispisuje kanal, autora i poruku na stdout
-			uint64_t current_channel_id;
-			if (channel_ptr) { // iz nekog Gospodnjeg razloga ovaj pokazivac je null kada je u pitanju botov event.reply??? 
-				current_channel_id = channel_ptr->id;
-				const std::vector<uint64_t> channel_ids = { 418750273977188354, 559780927547375617, 655442107644903434, 655442211755786240 };
-				const std::vector<std::string> channel_names = { "djeneral", "botovi-i-muzika", "visoko-vijece", "isusovci" };
-				std::string channel_cout_name = channel_ptr->name;
-
-				// s obzirom da stdout radi iskljucivo na ASCII-ju, imena kanala na cirilici ispisuju hijeroglife, te to popravljamo na ovaj nacin:
-				// trazimo da li se neki od cirilicno-imenovanih kanala poklapa sa ID-jevima u 'channel_names' te ga mapira na 'channel_ids' element istog indeksa
-				// ukoliko ga ne nadje, gore je vec navedena podrazumijevana vrijednost koja je ime trenutnog kanala
-				for (int i = 0; i < channel_names.size(); i++) {
-					uint64_t id = channel_ids[i];;
-					if (id == current_channel_id) {
-						channel_cout_name = channel_names[i];
-						break;
-					}
-				}
-				// provjeravamo da li je kanal gdje je dospjela zadnja poruka razlicit od kanala sa novom porukom, ukoliko jeste - ispisujemo i ime kanala
-				// bez ove provjere bi se desilo ili da se ime kanala ispisuje za svaku poruku, ili ni za jednu, cineci stdout jako neurednim
-				static dpp::channel* prev_channel = nullptr;
-				if (prev_channel != channel_ptr) {
-					std::string out_string_channelname = "\n[" + channel_cout_name + "]\n";
-					write_to_file(out_string_channelname, LOG_FILENAME);
-					std::cout << out_string_channelname;
-					prev_channel = channel_ptr;
-				}
-			}
-			std::string out_string = author_name + ": " + content + "\n";
-			write_to_file(out_string, LOG_FILENAME);
-			std::cout << out_string;
-		};
 
 		const dpp::message msg = event.msg;
 		// dpp::snowflake channel_sfid(msg.channel_id);
@@ -216,7 +177,7 @@ int main()
 		const std::string msg_str_raw = msg.content;
 		const std::string msg_str_parsed = parseMessage(msg_str_raw);
 
-		logMessage(msg.author.username, msg_str_raw, channelptr);
+		log_message(msg.author.username, msg_str_raw, channelptr);
 		if (msg_str_parsed.find(say_do_prompt) != std::string::npos && msg_author_id != self_id) {
 			std::string reply = getSubstr(msg_str_raw, say_do_prompt_length);
 			event.reply(reply, false);
